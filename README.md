@@ -255,7 +255,7 @@ Plus `canceled` (terminal, may be reached from anywhere).
 
 ### Step C1 — Create the checkout session
 
-Identifier rule: never include `id` in the `checkout` payload on create. The business assigns it.
+Identifier rule: on `create_checkout`, omit `id` on the top-level `checkout` *and* on each `line_items[]` entry. The business mints CartLine GIDs and returns them on the response — reuse those GIDs on subsequent `update_checkout` / `complete_checkout` calls when you need to reference a line.
 
 ```bash
 curl -sL -X POST "$MCP_ENDPOINT" \
@@ -276,7 +276,7 @@ curl -sL -X POST "$MCP_ENDPOINT" \
             "last_name": "Doe"
           },
           "line_items": [
-            { "id": "li_1", "item": { "id": "<VARIANT_ID_FROM_SEARCH>" }, "quantity": 1 }
+            { "item": { "id": "<VARIANT_ID_FROM_SEARCH>" }, "quantity": 1 }
           ],
           "currency": "USD",
           "fulfillment": {
@@ -320,7 +320,7 @@ Inspect `messages[]` and partition by `severity`:
 | `requires_buyer_input` | Hand off to `continue_url` — you cannot complete from the API. |
 | `requires_buyer_review` | Hand off to `continue_url` — buyer must approve. |
 
-`update_checkout` is a **full replacement** of the resource. Send the entire desired state of `checkout`, omit only the top-level `id`:
+`update_checkout` is a **full replacement** of the resource. Send the entire desired state of `checkout`, omit only the top-level `id`. Read `line_items[i].id` from the create response — those are server-minted CartLine GIDs — and use them verbatim wherever you reference the line (e.g., `fulfillment.methods[].line_item_ids`):
 
 ```bash
 curl -sL -X POST "$MCP_ENDPOINT" \
@@ -338,12 +338,12 @@ curl -sL -X POST "$MCP_ENDPOINT" \
         "checkout": {
           "buyer": { "email": "jane.doe@example.com", "first_name": "Jane", "last_name": "Doe" },
           "line_items": [
-            { "id": "li_1", "item": { "id": "<VARIANT_ID>" }, "quantity": 2 }
+            { "id": "<CART_LINE_ID_FROM_CREATE>", "item": { "id": "<VARIANT_ID>" }, "quantity": 2 }
           ],
           "currency": "USD",
           "fulfillment": {
             "methods": [
-              { "id": "shipping_1", "line_item_ids": ["li_1"],
+              { "id": "shipping_1", "line_item_ids": ["<CART_LINE_ID_FROM_CREATE>"],
                 "groups": [{ "id": "package_1", "selected_option_id": "express" }] }
             ]
           }
@@ -705,7 +705,7 @@ curl -sL -X POST "$MCP_ENDPOINT" -H 'Content-Type: application/json' -H 'Accept:
     "meta":{"ucp-agent":{"profile":"'"$AGENT_PROFILE_URL"'"}},
     "checkout":{
       "buyer":{"email":"jane@example.com","first_name":"Jane","last_name":"Doe"},
-      "line_items":[{"id":"li_1","item":{"id":"'"$VARIANT_ID"'"},"quantity":1}],
+      "line_items":[{"item":{"id":"'"$VARIANT_ID"'"},"quantity":1}],
       "currency":"USD",
       "fulfillment":{"methods":[{"type":"shipping","destinations":[{
         "street_address":"123 Main St","address_locality":"Springfield","address_region":"IL",
